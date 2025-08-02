@@ -7,32 +7,41 @@ practices.
 
 ## Project Overview
 
-This is a Solana blockchain application built using the Anchor framework.
+This is a Solana blockchain application called "SOL Journey" built using the Anchor framework. SOL Journey provides a spiritual toolkit for users to level up their spiritual practices, reflect on their progress, and connect with other spiritual travelers. The application allows users to:
+
+- Create and track meditation plans
+- Attest meditation sessions on-chain
+- Record daily reflections via journaling
+- Share progress with others using soul-bound NFTs
+- Build reputation within the community
+- Connect biometrics devices for proof-of-meditation
+
 The project follows standard Anchor project structure and development practices.
 
 ## Project Structure
 
-The `anchor` programs are stored in the `/anchor` directory and follow the standard `anchor` project structure:
+The project follows this structure:
 
-- `/programs/sol-journey/`: Contains the Rust smart contract code
+- `/programs/capstone/`: Contains the Rust smart contract code
     - `/src/`: Smart contract implementation files
+        - `/constants.rs`: Constant values used throughout the program
+        - `/error.rs`: Custom error definitions
+        - `/handlers/`: Instruction handler implementations
+        - `/state/`: Account data structure definitions
+            - `/meditation_plan.rs`: Structure for meditation plans
+            - `/meditation_attestation.rs`: Structure for meditation session attestations
+        - `/lib.rs`: Main program entry point and instruction definitions
     - `Cargo.toml`: Rust dependencies for the program
 - `/tests/`: TypeScript tests for the Solana program
 - `/migrations/`: Migration scripts for program deployment
-- `Anchor.toml`: Anchor configuration file
+- `/docs/`: Project documentation including architectural design
+- `Anchor.toml`: Anchor configuration file with program ID "Bvw5aYMCJDM1136hC5GLqmtq1LbsqSKEgC4owCQj9ZYm"
 - `Cargo.toml`: Workspace-level Rust dependencies
 - `tsconfig.json`: TypeScript configuration
-- `/src`: Contains a generated client using `gill` and `codama`.
 - Docs References
     - [@solana/kit Solana SDK](https://solana-kit-docs.vercel.app/docs)
     - [gill Solana SDK](https://gill.site/)
     - [gill docs on generation using codama](https://gill.site/docs/guides/codama)
-
-There is also a web dapp stored in the `/src` directory in the root.
-
-- Next.js app using React
-- Within the `/src` directory, the standard next.js structure is used.
-- The web dapp also uses the generated `gill` client to interact with the programs.
 
 ## Development Guidelines
 
@@ -43,11 +52,13 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Conduct thorough testing across multiple environments (localnet, devnet, testnet)
     - Keep dependencies updated with specific version pinning to prevent supply chain attacks
     - Consider zero-copy deserialization for large data structures to optimize performance
+    - Ensure proper validation of meditation plan parameters (duration, frequency, etc.)
 
 - **Architecture & Code Organization:**
     - Structure programs into modular components with clear separation between instruction logic and account validation
     - Design with program composability in mind to enable interaction with other on-chain programs
     - Consider upgrade paths early in development using program derived addresses (PDAs) or upgradeable BPF loaders
+    - Follow the established pattern of separating state definitions, instruction handlers, and error types
 
 ## Solana Program Development with Rust and Anchor
 
@@ -56,6 +67,7 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Employ safe arithmetic operations (`checked_add`, `checked_sub`, `checked_mul`) to prevent overflows
     - Implement proper error handling with custom error types via `#[error_code]` enums
     - Avoid excessive cloning/copying of data structures to minimize compute costs
+    - Use the InitSpace derive macro for structs that will be stored in vectors (like MeditationAttestation)
 
 - **Anchor-Specific Techniques:**
     - Use strongly-typed account validation via `#[derive(Accounts)]` instead of raw `AccountInfo`
@@ -63,6 +75,7 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Leverage PDA derivation with proper seeds and bump seeds
     - Use cross-program invocations (CPIs) safely with proper account checking
     - Store bump seeds in PDAs for future reference and validation
+    - Follow the project's pattern of using separate handler functions for each instruction
 
 ## Security Best Practices
 
@@ -71,15 +84,17 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Input validation for all public instructions
     - Protection against arithmetic overflow/underflow
     - Appropriate PDA (Program Derived Address) usage
-    - Enforce strict access controls: ensure only permitted signers can modify data.
-    - Use PDAs responsibly: validate seeds and ownership checks to prevent conflicts.
+    - Enforce strict access controls: ensure only permitted signers can modify data
+    - Use PDAs responsibly: validate seeds and ownership checks to prevent conflicts
+    - Implement proper validation for meditation plan parameters and attestations
 
 - **Access Control & Validation:**
     - Verify signers explicitly with `#[account(signer)]` constraint
     - Validate account ownership (`#[account(owner = expected_program_id)]`)
     - Check mathematical operations for potential overflow/underflow conditions
     - Verify account seeds when working with PDAs to prevent seed manipulation attacks
-    - Implement proper funds transfer validation, especially when handling SOL or SPL tokens
+    - Implement proper funds transfer validation, especially when handling SOL or USDC tokens
+    - Ensure only the plan owner can submit attestations for their own meditation plan
 
 - **Protecting Against Common Exploits:**
     - Prevent reentrancy vulnerabilities by completing all state changes before external calls
@@ -87,6 +102,7 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Validate all user-provided inputs with appropriate bounds checking
     - Close unused accounts to reclaim rent and prevent dangling accounts (`#[account(close = recipient)]`)
     - Verify expected account relationships to prevent account confusion attacks
+    - Implement proper validation for meditation session timing and frequency
 
 ## On‑Chain Data Handling
 
@@ -96,19 +112,22 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Implement transaction retries with proper backoff strategies
     - Structure transactions to minimize fees by batching related operations
     - Use preflight checks to validate transactions before submission
+    - Ensure proper handling of meditation plan and attestation data
 
 - **Metaplex & NFT Integration:**
     - Follow Metaplex token standards for metadata creation and management
     - Implement proper verification of NFT ownership and metadata
     - Use compressed NFTs (cNFTs) for collections with many assets to reduce costs
     - Employ proper royalty enforcement when implementing marketplaces
+    - Implement soul-bound NFTs for sharing meditation progress and building reputation
 
 ## Performance and Optimization
 
 - **Best Practices:**
-    - Minimize transaction costs by bundling operations efficiently.
-    - Exploit parallelism--don't serialize steps unnecessarily.
-    - Regularly benchmark your code to spot and remove performance
+    - Minimize transaction costs by bundling operations efficiently
+    - Exploit parallelism--don't serialize steps unnecessarily
+    - Regularly benchmark your code to spot and remove performance bottlenecks
+    - Optimize meditation plan and attestation data structures to minimize storage costs
 
 - **Computational Efficiency:**
     - Optimize account sizes to minimize storage costs
@@ -116,12 +135,33 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Minimize instruction count and computational complexity
     - Profile programs to identify compute unit bottlenecks
     - Consider native Rust implementation for performance-critical sections
+    - Optimize the storage of meditation attestations within the meditation plan
 
 - **Advanced Optimization Techniques:**
     - Use instruction introspection to optimize control flow
     - Implement caching strategies to reduce redundant computations
     - Consider specialized data structures for frequent operations
     - Use direct syscalls in performance-critical paths (with appropriate safety measures)
+    - Optimize biometric data processing if implementing proof-of-meditation features
+
+### Project-Specific Guidelines
+
+- **Meditation Plan Implementation:**
+    - Ensure proper validation of plan parameters (duration, frequency, etc.)
+    - Implement secure staking mechanism for USDC tokens
+    - Enforce the $500 cap on deposits
+    - Calculate rewards and penalties accurately based on attestations
+
+- **Meditation Attestation Implementation:**
+    - Validate attestation timing against the plan requirements
+    - Ensure attestations can only be submitted by the plan owner
+    - Implement proper validation for biometric data if used
+    - Update rewards and penalties correctly based on attestations
+
+- **User Privacy and Data Security:**
+    - Ensure user data is properly secured and private
+    - Implement appropriate access controls for user journals and reflections
+    - Allow users to control what data is shared with the community
 
 ### Code Style
 
@@ -145,6 +185,7 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Use property-based testing for exhaustive validation
     - Test against adversarial scenarios and input validation
     - Perform fuzz testing to identify unexpected vulnerabilities
+    - Test meditation plan creation, attestation submission, and reward/penalty calculations
 
 ### Build Process
 
@@ -161,7 +202,7 @@ There is also a web dapp stored in the `/src` directory in the root.
 ### Deployment Plan
 
 - **Deployment Guidelines:**
-    - Program ID is defined in `Anchor.toml`
+    - Program ID is defined in `Anchor.toml` as "Bvw5aYMCJDM1136hC5GLqmtq1LbsqSKEgC4owCQj9ZYm"
     - Use Anchor for program deployment
     - Document any changes to program IDL
 
@@ -179,6 +220,7 @@ There is also a web dapp stored in the `/src` directory in the root.
     - Provide SDK examples for frontend integration
     - Maintain up-to-date integration guides and examples
     - Document known limitations and edge cases
+    - Keep the architectural design document updated with the latest implementation details
 
 - **Long-Term Maintenance:**
     - Plan for program upgrades and backward compatibility
@@ -203,3 +245,4 @@ There is also a web dapp stored in the `/src` directory in the root.
 - [@solana/kit Solana SDK](https://solana-kit-docs.vercel.app/docs)
 - [gill Solana SDK](https://gill.site/)
 - [gill source code](https://github.com/DecalLabs/gill)
+- 
