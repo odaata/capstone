@@ -19,7 +19,7 @@ export const USDC_MINT = new PublicKey(
   IDL.constants.find((c) => c.name === "USDC_MINT")?.value ?? "",
 );
 
-export const setupUSDC = (svm: LiteSVM, owner: PublicKey, amount = 500n) => {
+export const setupUSDC = (svm: LiteSVM) => {
   const usdcAccountInfo = {
     data: Buffer.from(usdcAccount.data.data),
     executable: false,
@@ -28,7 +28,9 @@ export const setupUSDC = (svm: LiteSVM, owner: PublicKey, amount = 500n) => {
     rentEpoch: 1_000_000_000,
   };
   svm.setAccount(USDC_MINT, usdcAccountInfo);
+};
 
+export const airdropUsdc = (svm: LiteSVM, owner: PublicKey, amount = 500n) => {
   const usdcAta = getAssociatedTokenAddressSync(USDC_MINT, owner, true);
   const tokenAccData = Buffer.alloc(ACCOUNT_SIZE);
   AccountLayout.encode(
@@ -60,6 +62,7 @@ export const setupUSDC = (svm: LiteSVM, owner: PublicKey, amount = 500n) => {
 export const loadSvm = () => {
   const svm = fromWorkspace(".");
   svm.withSplPrograms();
+  setupUSDC(svm);
   const provider = new LiteSVMProvider(svm);
   const program = new Program<Capstone>(IDL, provider);
   return { program, provider, svm };

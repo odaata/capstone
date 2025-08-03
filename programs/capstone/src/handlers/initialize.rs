@@ -61,6 +61,9 @@ impl<'info> Initialize<'info> {
         commitment_stake: u64,
         bumps: &InitializeBumps,
     ) -> Result<()> {
+        require_gte!(number_of_days, 7, MeditationPlanError::InvalidNumberOfDays);
+        require_gte!(30, number_of_days, MeditationPlanError::InvalidNumberOfDays);
+
         let start_at = Clock::get()?.unix_timestamp;
         let end_at = start_at + (number_of_days as i64 * 24 * 60 * 60);
         self.meditation_plan.set_inner(MeditationPlan {

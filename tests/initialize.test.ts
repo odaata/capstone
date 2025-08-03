@@ -2,9 +2,10 @@ import { BN } from "@coral-xyz/anchor";
 import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 
-import { loadSvm, setupUSDC, USDC_MINT } from "./helpers";
-
-const { program, provider, svm } = loadSvm();
+import type { CapstoneProgram } from "./helpers";
+import { airdropUsdc, loadSvm, USDC_MINT } from "./helpers";
+import { LiteSVM } from "litesvm";
+import { LiteSVMProvider } from "anchor-litesvm";
 
 describe("capstone initialize", () => {
   let commitmentStake: BN;
@@ -12,6 +13,9 @@ describe("capstone initialize", () => {
   let durationMinutes: number;
   let id: BN;
   let numberOfDays: number;
+  let program: CapstoneProgram;
+  let provider: LiteSVMProvider;
+  let svm: LiteSVM;
   let usdcAta: PublicKey;
 
   const subject = async () => {
@@ -32,11 +36,13 @@ describe("capstone initialize", () => {
     console.log("Your transaction signature", tx);
   };
 
-  beforeAll(() => {
-    usdcAta = setupUSDC(svm, provider.publicKey, 500n);
-  });
-
   beforeEach(() => {
+    jest.resetModules();
+    const result = loadSvm();
+    program = result.program;
+    provider = result.provider;
+    svm = result.svm;
+
     id = new BN(Date.now());
     commitmentStake = new BN(250);
     dailyFrequency = 2;
@@ -45,6 +51,8 @@ describe("capstone initialize", () => {
   });
 
   it("initializes meditation plan and transfers USDC", async () => {
+    usdcAta = airdropUsdc(svm, provider.publicKey, 500n);
+
     let usdcAccountInfo = await getAccount(provider.connection, usdcAta);
     expect(usdcAccountInfo.amount).toBe(500n);
 
@@ -84,5 +92,26 @@ describe("capstone initialize", () => {
     // LiteSVM clock returns 0 as the unix timestamp
     expect(planState.startAt.toNumber()).toBe(0);
     expect(planState.endAt.toNumber()).toBe(numberOfDays * (24 * 60 * 60));
+  });
+
+  describe("errors", () => {
+    beforeEach(() => {
+      usdcAta = airdropUsdc(svm, provider.publicKey, 500n);
+    });
+
+    describe.each([
+      ["too low", 6],
+      ["too high", 31],
+    ])("when number of days %s", (_label, days) => {
+      beforeEach(() => {
+        numberOfDays = days;
+      });
+
+      it("throws InvalidNumberOfDays error", async () => {
+        await expect(subject()).rejects.toThrow(
+          "Number of days must be between 7 and 30",
+        );
+      });
+    });
   });
 });
