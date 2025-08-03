@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 
 import { loadSvm, setupUSDC, USDC_MINT } from "./helpers";
@@ -12,6 +12,7 @@ describe("capstone initialize", () => {
   let durationMinutes: number;
   let id: BN;
   let numberOfDays: number;
+  let usdcAta: PublicKey;
 
   const subject = async () => {
     const tx = await program.methods
@@ -31,12 +32,12 @@ describe("capstone initialize", () => {
     console.log("Your transaction signature", tx);
   };
 
-  beforeAll(async () => {
-    await setupUSDC(svm, provider.publicKey);
+  beforeAll(() => {
+    usdcAta = setupUSDC(svm, provider.publicKey, 500n);
   });
 
   beforeEach(() => {
-    id = new BN(5);
+    id = new BN(Date.now());
     commitmentStake = new BN(250);
     dailyFrequency = 2;
     durationMinutes = 20;
@@ -44,33 +45,44 @@ describe("capstone initialize", () => {
   });
 
   it("initializes meditation plan and transfers USDC", async () => {
+    let usdcAccountInfo = await getAccount(provider.connection, usdcAta);
+    expect(usdcAccountInfo.amount).toBe(500n);
+
     await subject();
+
+    usdcAccountInfo = await getAccount(provider.connection, usdcAta);
+    expect(usdcAccountInfo.amount).toBe(250n);
 
     const [planStatePDA, planStateBump] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("meditation_plan"),
         provider.publicKey.toBuffer(),
-        id.toBuffer(),
+        id.toArrayLike(Buffer, "le", 8),
       ],
       program.programId,
     );
 
     const planState = await program.account.meditationPlan.fetch(planStatePDA);
-    expect(planState).toStrictEqual({
+    expect(planState).toMatchObject({
       attestations: [],
       bump: planStateBump,
-      commitmentStake,
       dailyFrequency,
       durationMinutes,
-      endAt: Date.now() + numberOfDays * 24 * 60 * 60,
-      id,
       isActive: false,
       isCompleted: false,
       numberOfDays,
       owner: provider.publicKey,
-      penalties: 0,
-      rewards: 0,
-      start_at: Date.now(),
     });
+    expect(planState.commitmentStake.toNumber()).toBe(
+      commitmentStake.toNumber(),
+    );
+    expect(planState.id.toNumber()).toBe(id.toNumber());
+
+    expect(planState.penalties.toNumber()).toBe(0);
+    expect(planState.rewards.toNumber()).toBe(0);
+
+    // LiteSVM clock returns 0 as the unix timestamp
+    expect(planState.startAt.toNumber()).toBe(0);
+    expect(planState.endAt.toNumber()).toBe(numberOfDays * (24 * 60 * 60));
   });
 });

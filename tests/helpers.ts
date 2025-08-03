@@ -19,11 +19,7 @@ export const USDC_MINT = new PublicKey(
   IDL.constants.find((c) => c.name === "USDC_MINT")?.value ?? "",
 );
 
-export const setupUSDC = async (
-  svm: LiteSVM,
-  owner: PublicKey,
-  amount = 500n,
-) => {
+export const setupUSDC = (svm: LiteSVM, owner: PublicKey, amount = 500n) => {
   const usdcAccountInfo = {
     data: Buffer.from(usdcAccount.data.data),
     executable: false,
@@ -33,7 +29,7 @@ export const setupUSDC = async (
   };
   svm.setAccount(USDC_MINT, usdcAccountInfo);
 
-  const ata = getAssociatedTokenAddressSync(USDC_MINT, owner, true);
+  const usdcAta = getAssociatedTokenAddressSync(USDC_MINT, owner, true);
   const tokenAccData = Buffer.alloc(ACCOUNT_SIZE);
   AccountLayout.encode(
     {
@@ -52,12 +48,13 @@ export const setupUSDC = async (
     tokenAccData,
   );
 
-  svm.setAccount(ata, {
+  svm.setAccount(usdcAta, {
     lamports: 1_000_000_000,
     data: tokenAccData,
     owner: TOKEN_PROGRAM_ID,
     executable: false,
   });
+  return usdcAta;
 };
 
 export const loadSvm = () => {
