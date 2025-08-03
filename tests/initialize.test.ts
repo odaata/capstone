@@ -1,5 +1,3 @@
-import { BN } from "@coral-xyz/anchor";
-
 import { loadSvm } from "./helpers";
 
 const { program, provider } = loadSvm();
