@@ -4,7 +4,7 @@ use anchor_spl::{
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 
-use crate::constants::{ANCHOR_DISCRIMINATOR, USDC_MINT};
+use crate::constants::USDC_MINT;
 use crate::error::MeditationPlanError;
 use crate::state::MeditationPlan;
 
@@ -17,7 +17,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = owner,
-        space = ANCHOR_DISCRIMINATOR as usize + MeditationPlan::INIT_SPACE,
+        space = MeditationPlan::DISCRIMINATOR.len() + MeditationPlan::INIT_SPACE,
         seeds = [b"meditation_plan", owner.key().as_ref(), id.to_le_bytes().as_ref()],
         bump
     )]
