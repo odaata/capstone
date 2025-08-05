@@ -25,8 +25,6 @@ pub const USDC_TOKEN: u64 = 1_000_000;
 
 // Holds everything needed to test the meditation plan contract
 pub struct TestHarness {
-    /// The LiteSVM instance
-    pub svm: LiteSVM,
     /// The program ID
     pub program_id: Pubkey,
     /// USDC Token mint
@@ -42,49 +40,37 @@ pub struct TestHarness {
 }
 
 impl TestHarness {
-    pub fn new() -> Self {
-        setup_test_harness()
-    }
+    pub fn new(svm: &mut LiteSVM) -> Self {
+        let program_id = get_program_id();
+        deploy_program(svm, &program_id, "../../target/deploy/capstone.so").unwrap();
 
-    pub fn airdrop_usdc(&mut self, recipient: Pubkey, amount: u64) {
-        airdrop_usdc(&mut self.svm, self.usdc_mint, recipient, amount);
-    }
-}
+        let usdc_mint = create_usdc_mint(svm);
 
-/// Sets up a test harness for the meditation plan flow using LiteSVM
-pub fn setup_test_harness() -> TestHarness {
-    let mut svm = LiteSVM::new();
+        // Create and fund user accounts
+        let alice = Keypair::new();
+        svm.airdrop(&alice.pubkey(), 1_000_000_000).unwrap();
 
-    let program_id = get_program_id();
-    deploy_program(&mut svm, &program_id, "../../target/deploy/capstone.so").unwrap();
+        let alice_usdc_account = airdrop_usdc(svm, usdc_mint, alice.pubkey(), 100 * USDC_TOKEN);
 
-    let usdc_mint = create_usdc_mint(&mut svm);
+        let balance = get_token_account_balance(&svm, &alice_usdc_account);
+        println!("Alice's USDC balance: {}", balance.unwrap() / USDC_TOKEN);
 
-    // Create and fund user accounts
-    let alice = Keypair::new();
-    svm.airdrop(&alice.pubkey(), 1_000_000_000).unwrap();
+        let bob = Keypair::new();
+        svm.airdrop(&bob.pubkey(), 1_000_000_000).unwrap();
 
-    let alice_usdc_account = airdrop_usdc(&mut svm, usdc_mint, alice.pubkey(), 100 * USDC_TOKEN);
+        let bob_usdc_account = airdrop_usdc(svm, usdc_mint, bob.pubkey(), 100 * USDC_TOKEN);
 
-    let balance = get_token_account_balance(&svm, &alice_usdc_account);
-    println!("Alice's USDC balance: {}", balance.unwrap() / USDC_TOKEN);
+        let balance = get_token_account_balance(&svm, &bob_usdc_account);
+        println!("Bob's USDC balance: {}", balance.unwrap() / USDC_TOKEN);
 
-    let bob = Keypair::new();
-    svm.airdrop(&bob.pubkey(), 1_000_000_000).unwrap();
-
-    let bob_usdc_account = airdrop_usdc(&mut svm, usdc_mint, bob.pubkey(), 100 * USDC_TOKEN);
-
-    let balance = get_token_account_balance(&svm, &bob_usdc_account);
-    println!("Bob's USDC balance: {}", balance.unwrap() / USDC_TOKEN);
-
-    TestHarness {
-        alice,
-        alice_usdc_account,
-        bob,
-        bob_usdc_account,
-        program_id,
-        svm,
-        usdc_mint,
+        TestHarness {
+            alice,
+            alice_usdc_account,
+            bob,
+            bob_usdc_account,
+            program_id,
+            usdc_mint,
+        }
     }
 }
 
@@ -235,7 +221,8 @@ pub fn build_initialize_instruction(
 
 /// Initializes a meditation plan and sends USDC to vault
 pub fn execute_initialize(
-    harness: &mut TestHarness,
+    svm: &mut LiteSVM,
+    harness: &TestHarness,
     id: u64,
     owner: &Keypair,
     owner_ata: Pubkey,
@@ -243,9 +230,9 @@ pub fn execute_initialize(
     daily_frequency: u8,
     duration_minutes: u8,
     commitment_stake: u64,
-) -> Result<(Pubkey, Pubkey), SolanaKiteError> {
+) -> Result<(Pubkey, u8, Pubkey), SolanaKiteError> {
     // Create PDAs
-    let (meditation_plan, _meditation_bump) = get_pda_and_bump(
+    let (meditation_plan, meditation_bump) = get_pda_and_bump(
         &seeds!["meditation_plan", owner.pubkey(), id],
         &harness.program_id,
     );
@@ -274,11 +261,11 @@ pub fn execute_initialize(
     );
 
     send_transaction_from_instructions(
-        &mut harness.svm,
+        svm,
         vec![initialize_instruction],
         &[owner],
         &owner.pubkey(),
     )?;
 
-    Ok((meditation_plan, vault))
+    Ok((meditation_plan, meditation_bump, vault))
 }
