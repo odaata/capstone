@@ -12,11 +12,12 @@ env:
   ANCHOR_VERSION: v0.31.1
 
 jobs:
-  build:
+  Main:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+        # https://www.anchor-lang.com/docs/installation#install-dependencies
       - name: Install system dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -25,6 +26,7 @@ jobs:
           libudev-dev llvm libclang-dev \
           protobuf-compiler libssl-dev
 
+        # https://www.anchor-lang.com/docs/installation#nodejs-and-yarn
       - name: Enable pnpm via corepack
         run: corepack enable
 
@@ -37,33 +39,32 @@ jobs:
       - name: Install NPM Packages
         run: pnpm install --frozen-lockfile
 
+        # https://www.anchor-lang.com/docs/installation#install-rust
       - name: Install Rust
-        run: |
-          set -e
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "/home/runner/.cargo/bin" >> $GITHUB_PATH
-        shell: bash
+        run: rustup toolchain install stable --profile minimal
 
-      #      - name: Cache Cargo registry
-      #        uses: actions/cache@v3
-      #        with:
-      #          path: |
-      #            ~/.cargo/registry
-      #            ~/.cargo/git
-      #            target
-      #          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      #          restore-keys: |
-      #            ${{ runner.os }}-cargo-
+        #      - name: Cache Cargo registry
+        #        uses: actions/cache@v3
+        #        with:
+        #          path: |
+        #            ~/.cargo/registry
+        #            ~/.cargo/git
+        #            target
+        #          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        #          restore-keys: |
+        #            ${{ runner.os }}-cargo-
 
+        # https://www.anchor-lang.com/docs/installation#install-the-solana-cli
       - name: Install Solana CLI
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/$SOLANA_VERSION/install)"
           echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-        shell: bash
+          solana-keygen new
+          solana config set -ul                  
 
+        # https://www.anchor-lang.com/docs/installation#install-anchor-cli
       - name: Install Anchor CLI
         run: cargo install --git https://github.com/coral-xyz/anchor --tag $ANCHOR_VERSION anchor-cli
-        shell: bash
 
       - name: Run Anchor tests
         run: anchor test
