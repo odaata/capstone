@@ -59,12 +59,18 @@ jobs:
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/$SOLANA_VERSION/install)"
           echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Setup Solana Wallet
+        run: |
+          solana --version
           solana-keygen new
           solana config set -ul                  
 
         # https://www.anchor-lang.com/docs/installation#install-anchor-cli
       - name: Install Anchor CLI
         run: cargo install --git https://github.com/coral-xyz/anchor --tag $ANCHOR_VERSION anchor-cli
+
+      - run: anchor --version
 
       - name: Run Anchor tests
         run: anchor test
