@@ -61,8 +61,12 @@ impl<'info> Initialize<'info> {
         commitment_stake: u64,
         bumps: &InitializeBumps,
     ) -> Result<()> {
-        require_gte!(number_of_days, 7, MeditationPlanError::InvalidNumberOfDays);
-        require_gte!(30, number_of_days, MeditationPlanError::InvalidNumberOfDays);
+        self.validate_input(
+            number_of_days,
+            daily_frequency,
+            duration_minutes,
+            commitment_stake,
+        )?;
 
         let start_at = Clock::get()?.unix_timestamp;
         let end_at = start_at + (number_of_days as i64 * 24 * 60 * 60);
@@ -83,6 +87,63 @@ impl<'info> Initialize<'info> {
             start_at,
         });
         self.deposit(commitment_stake)
+    }
+
+    fn validate_input(
+        &self,
+        number_of_days: u8,
+        daily_frequency: u8,
+        duration_minutes: u8,
+        commitment_stake: u64,
+    ) -> Result<()> {
+        require_gte!(number_of_days, 7, MeditationPlanError::InvalidNumberOfDays);
+        require_gte!(30, number_of_days, MeditationPlanError::InvalidNumberOfDays);
+
+        require_gte!(
+            daily_frequency,
+            1,
+            MeditationPlanError::InvalidDailyFrequency
+        );
+        require_gte!(
+            4,
+            daily_frequency,
+            MeditationPlanError::InvalidDailyFrequency
+        );
+
+        require_gte!(
+            duration_minutes,
+            5,
+            MeditationPlanError::InvalidDurationMinutes
+        );
+        require_gte!(
+            60,
+            duration_minutes,
+            MeditationPlanError::InvalidDurationMinutes
+        );
+
+        let decimals = 10u64
+            .checked_pow(self.mint.decimals.into())
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        let min_stake = (10u64)
+            .checked_mul(decimals)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        require_gte!(
+            commitment_stake,
+            min_stake,
+            MeditationPlanError::InvalidCommitmentStakeAmount
+        );
+
+        let max_stake = (500u64)
+            .checked_mul(decimals)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        require_gte!(
+            max_stake,
+            commitment_stake,
+            MeditationPlanError::InvalidCommitmentStakeAmount
+        );
+
+        Ok(())
     }
 
     fn deposit(&mut self, commitment_stake: u64) -> Result<()> {

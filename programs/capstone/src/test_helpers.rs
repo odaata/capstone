@@ -98,7 +98,12 @@ fn create_usdc_mint(svm: &mut LiteSVM) -> Pubkey {
     usdc_mint
 }
 
-fn airdrop_usdc(svm: &mut LiteSVM, usdc_mint: Pubkey, recipient: Pubkey, amount: u64) -> Pubkey {
+pub fn airdrop_usdc(
+    svm: &mut LiteSVM,
+    usdc_mint: Pubkey,
+    recipient: Pubkey,
+    amount: u64,
+) -> Pubkey {
     let usdc_account = get_associated_token_address(&recipient, &usdc_mint);
     let token_acc = TokenAccount {
         mint: usdc_mint,
@@ -234,10 +239,10 @@ pub fn build_initialize_instruction(
 /// Initializes a meditation plan and sends USDC to vault
 pub fn execute_initialize(
     svm: &mut LiteSVM,
-    harness: &TestHarness,
-    id: u64,
+    usdc_mint: Pubkey,
     owner: &Keypair,
     owner_ata: Pubkey,
+    id: u64,
     number_of_days: u8,
     daily_frequency: u8,
     duration_minutes: u8,
@@ -246,21 +251,14 @@ pub fn execute_initialize(
     // Create PDAs
     let (meditation_plan, meditation_bump) = get_pda_and_bump(
         &seeds!["meditation_plan", owner.pubkey(), id],
-        &harness.program_id,
+        &get_program_id(),
     );
-    let vault = spl_associated_token_account::get_associated_token_address(
-        &meditation_plan,
-        &harness.usdc_mint,
-    );
+    let vault =
+        spl_associated_token_account::get_associated_token_address(&meditation_plan, &usdc_mint);
 
     // Build accounts
-    let initialize_accounts = build_initialize_accounts(
-        owner.pubkey(),
-        harness.usdc_mint,
-        owner_ata,
-        meditation_plan,
-        vault,
-    );
+    let initialize_accounts =
+        build_initialize_accounts(owner.pubkey(), usdc_mint, owner_ata, meditation_plan, vault);
 
     // Build and execute instruction
     let initialize_instruction = build_initialize_instruction(

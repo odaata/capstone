@@ -1,9 +1,17 @@
 use solana_kite::get_token_account_balance;
+use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 
 use crate::test_helpers::{
-    execute_initialize, generate_id, get_meditation_plan, TestHarness, USDC_TOKEN,
+    airdrop_usdc, execute_initialize, generate_id, get_meditation_plan, TestHarness, USDC_TOKEN,
 };
+
+// Valid settings for testing
+const FIFTY_USDC: u64 = 50 * USDC_TOKEN;
+const NUMBER_OF_DAYS: u8 = 7;
+const DAILY_FREQUENCY: u8 = 1;
+const DURATION_MINUTES: u8 = 20;
+const COMMITMENT_STAKE: u64 = FIFTY_USDC;
 
 #[test]
 fn test_initialize_succeeds() {
@@ -13,42 +21,280 @@ fn test_initialize_succeeds() {
     assert_eq!(balance.unwrap(), USDC_TOKEN * 100);
 
     let id = generate_id();
-    let number_of_days: u8 = 7;
-    let daily_frequency: u8 = 1;
-    let duration_minutes: u8 = 20;
-    let commitment_stake: u64 = USDC_TOKEN * 50;
 
-    let (meditation_plan, meditation_bump, _vault) = execute_initialize(
+    let result = execute_initialize(
         &mut svm,
-        &harness,
-        id,
+        harness.usdc_mint,
         &harness.alice,
         harness.alice_usdc_account,
-        number_of_days,
-        daily_frequency,
-        duration_minutes,
-        commitment_stake,
-    )
-    .expect("Initialize  meditation plan should succeed");
+        id,
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_ok(), "Initialize should succeed");
+
+    let (meditation_plan, meditation_bump, _vault) = result.unwrap();
 
     let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
-    assert_eq!(balance.unwrap(), USDC_TOKEN * 50);
+    assert_eq!(balance.unwrap(), FIFTY_USDC);
 
     let (plan_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
     assert_eq!(plan_account.owner, harness.program_id);
 
     assert_eq!(plan.attestations.len(), 0);
     assert_eq!(plan.bump, meditation_bump);
-    assert_eq!(plan.commitment_stake, commitment_stake);
-    assert_eq!(plan.daily_frequency, daily_frequency);
-    assert_eq!(plan.duration_minutes, duration_minutes);
+    assert_eq!(plan.commitment_stake, COMMITMENT_STAKE);
+    assert_eq!(plan.daily_frequency, DAILY_FREQUENCY);
+    assert_eq!(plan.duration_minutes, DURATION_MINUTES);
     assert_eq!(plan.id, id);
     assert_eq!(plan.is_active, false);
     assert_eq!(plan.is_completed, false);
-    assert_eq!(plan.number_of_days, number_of_days);
+    assert_eq!(plan.number_of_days, NUMBER_OF_DAYS);
     assert_eq!(plan.owner, harness.alice.pubkey());
     assert_eq!(plan.penalties, 0);
     assert_eq!(plan.rewards, 0);
     assert_eq!(plan.start_at, 0);
-    assert_eq!(plan.end_at, number_of_days as i64 * 24 * 60 * 60);
+    assert_eq!(plan.end_at, NUMBER_OF_DAYS as i64 * 24 * 60 * 60);
+}
+
+#[test]
+fn test_duplicate_id_fails() {
+    let (mut svm, harness) = TestHarness::new();
+    let id = generate_id();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        id,
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_ok(), "First initialize should succeed");
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        id,
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "Second call with same id should fail");
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.bob,
+        harness.bob_usdc_account,
+        id,
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(
+        result.is_ok(),
+        "Bob should be able to initialize with same id"
+    );
+}
+
+#[test]
+fn test_insufficient_usdc_fails() {
+    let (mut svm, harness) = TestHarness::new();
+    let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
+    assert_eq!(balance.unwrap(), USDC_TOKEN * 100);
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        USDC_TOKEN * 150,
+    );
+    assert!(result.is_err(), "USDC balance should be insufficient");
+}
+
+#[test]
+fn test_non_usdc_commitment_stake_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        Pubkey::new_unique(),
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "Non-USDC token should fail");
+}
+
+#[test]
+fn test_commitment_stake_below_minimum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        USDC_TOKEN * 9,
+    );
+    assert!(result.is_err(), "commitment stake below 10 should fail");
+}
+
+#[test]
+fn test_commitment_stake_above_maximum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    airdrop_usdc(
+        &mut svm,
+        harness.usdc_mint,
+        harness.alice.pubkey(),
+        USDC_TOKEN * 600,
+    );
+
+    let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
+    assert_eq!(balance.unwrap(), USDC_TOKEN * 600);
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        USDC_TOKEN * 501,
+    );
+    assert!(result.is_err(), "commitment stake above 500 should fail");
+}
+
+#[test]
+fn test_number_of_days_below_minimum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        6,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "number of days below 7 should fail");
+}
+
+#[test]
+fn test_number_of_days_above_maximum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        31,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "number of days above 30 should fail");
+}
+
+#[test]
+fn test_daily_frequency_below_minimum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        0,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "daily frequency below 1 should fail");
+}
+
+#[test]
+fn test_daily_frequency_above_maximum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        5,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "daily frequency above 4 should fail");
+}
+
+#[test]
+fn test_duration_minutes_below_minimum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        4,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "duration minutes below 5 should fail");
+}
+
+#[test]
+fn test_duration_minutes_above_maximum_fails() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let result = execute_initialize(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        61,
+        COMMITMENT_STAKE,
+    );
+    assert!(result.is_err(), "duration minutes above 60 should fail");
 }
