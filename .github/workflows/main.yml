@@ -13,8 +13,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: "curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev"
+        shell: bash
+      - name: Build
+        run: anchor build
+      - name: Run tests
+        run: anchor test
