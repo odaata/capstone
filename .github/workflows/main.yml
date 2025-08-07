@@ -63,7 +63,7 @@ jobs:
       - name: Setup Solana Wallet
         run: |
           solana --version
-          solana-keygen new
+          solana-keygen new --no-bip39-passphrase --silent
           solana config set -ul                  
 
         # https://www.anchor-lang.com/docs/installation#install-anchor-cli
