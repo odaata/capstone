@@ -8,16 +8,49 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  SOLANA_VERSION: stable
+  ANCHOR_VERSION: v0.31.1
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: "curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash"
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Rust
+        run: |
+          set -e
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "/home/runner/.cargo/bin" >> $GITHUB_PATH
         shell: bash
-      - name: Build
-        run: anchor build
-      - name: Run tests
+
+      #      - name: Cache Cargo registry
+      #        uses: actions/cache@v3
+      #        with:
+      #          path: |
+      #            ~/.cargo/registry
+      #            ~/.cargo/git
+      #            target
+      #          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      #          restore-keys: |
+      #            ${{ runner.os }}-cargo-
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/$SOLANA_VERSION/install)"
+          echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Install Anchor CLI
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag $ANCHOR_VERSION anchor-cli
+        shell: bash
+
+      - name: Run Anchor tests
         run: anchor test
