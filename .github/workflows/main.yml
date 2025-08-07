@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -41,7 +42,10 @@ jobs:
 
         # https://www.anchor-lang.com/docs/installation#install-rust
       - name: Install Rust
-        run: rustup toolchain install stable --profile minimal
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          rustc --version
 
         # https://github.com/Swatinem/rust-cache
       - uses: Swatinem/rust-cache@v2
@@ -50,7 +54,7 @@ jobs:
       - name: Install Solana CLI
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/$SOLANA_VERSION/install)"
-          echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Setup Solana Wallet
         run: |
@@ -60,7 +64,9 @@ jobs:
 
         # https://www.anchor-lang.com/docs/installation#install-anchor-cli
       - name: Install Anchor CLI
-        run: cargo install --git https://github.com/coral-xyz/anchor --tag $ANCHOR_VERSION anchor-cli
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag $ANCHOR_VERSION anchor-cli
+          anchor --version
 
       - name: Run Anchor Build
         run: anchor build
