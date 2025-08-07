@@ -43,16 +43,8 @@ jobs:
       - name: Install Rust
         run: rustup toolchain install stable --profile minimal
 
-        #      - name: Cache Cargo registry
-        #        uses: actions/cache@v3
-        #        with:
-        #          path: |
-        #            ~/.cargo/registry
-        #            ~/.cargo/git
-        #            target
-        #          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        #          restore-keys: |
-        #            ${{ runner.os }}-cargo-
+        # https://github.com/Swatinem/rust-cache
+      - uses: Swatinem/rust-cache@v2
 
         # https://www.anchor-lang.com/docs/installation#install-the-solana-cli
       - name: Install Solana CLI
@@ -70,7 +62,8 @@ jobs:
       - name: Install Anchor CLI
         run: cargo install --git https://github.com/coral-xyz/anchor --tag $ANCHOR_VERSION anchor-cli
 
-      - run: anchor --version
+      - name: Run Anchor Build
+        run: anchor build
 
       - name: Run Anchor tests
-        run: anchor test
+        run: anchor test --skip-build
