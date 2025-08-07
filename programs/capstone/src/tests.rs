@@ -1,15 +1,13 @@
-use anchor_lang::AccountDeserialize;
-use litesvm::LiteSVM;
 use solana_kite::get_token_account_balance;
 use solana_signer::Signer;
 
-use crate::test_helpers::{execute_initialize, generate_id, TestHarness, USDC_TOKEN};
-use crate::MeditationPlan;
+use crate::test_helpers::{
+    execute_initialize, generate_id, get_meditation_plan, TestHarness, USDC_TOKEN,
+};
 
 #[test]
 fn test_initialize_succeeds() {
-    let mut svm = LiteSVM::new();
-    let harness = TestHarness::new(&mut svm);
+    let (mut svm, harness) = TestHarness::new();
 
     let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
     assert_eq!(balance.unwrap(), USDC_TOKEN * 100);
@@ -36,11 +34,9 @@ fn test_initialize_succeeds() {
     let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
     assert_eq!(balance.unwrap(), USDC_TOKEN * 50);
 
-    let raw_plan_account = svm.get_account(&meditation_plan).unwrap();
-    assert_eq!(raw_plan_account.owner, harness.program_id);
+    let (plan_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
+    assert_eq!(plan_account.owner, harness.program_id);
 
-    let plan = MeditationPlan::try_deserialize(&mut raw_plan_account.data.as_slice())
-        .expect("Anchor deserialize should succeed");
     assert_eq!(plan.attestations.len(), 0);
     assert_eq!(plan.bump, meditation_bump);
     assert_eq!(plan.commitment_stake, commitment_stake);

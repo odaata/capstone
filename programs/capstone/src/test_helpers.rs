@@ -1,10 +1,10 @@
+use anchor_lang::AccountDeserialize;
 use litesvm::LiteSVM;
 use solana_account::Account;
 use solana_instruction::{AccountMeta, Instruction};
 use solana_keypair::Keypair;
 use solana_kite::{
-    deploy_program, get_pda_and_bump, get_token_account_balance, seeds,
-    send_transaction_from_instructions, SolanaKiteError,
+    deploy_program, get_pda_and_bump, seeds, send_transaction_from_instructions, SolanaKiteError,
 };
 use solana_program_option::COption;
 use solana_program_pack::Pack;
@@ -15,6 +15,8 @@ use spl_token::state::{Account as TokenAccount, AccountState};
 use spl_token::ID as TOKEN_PROGRAM_ID;
 use std::cell::Cell;
 use std::str::FromStr;
+
+use crate::MeditationPlan;
 
 pub const PROGRAM_ID: &str = "Bvw5aYMCJDM1136hC5GLqmtq1LbsqSKEgC4owCQj9ZYm";
 
@@ -40,37 +42,36 @@ pub struct TestHarness {
 }
 
 impl TestHarness {
-    pub fn new(svm: &mut LiteSVM) -> Self {
+    pub fn new() -> (LiteSVM, Self) {
+        let mut svm = LiteSVM::new();
         let program_id = get_program_id();
-        deploy_program(svm, &program_id, "../../target/deploy/capstone.so").unwrap();
+        deploy_program(&mut svm, &program_id, "../../target/deploy/capstone.so").unwrap();
 
-        let usdc_mint = create_usdc_mint(svm);
+        let usdc_mint = create_usdc_mint(&mut svm);
 
         // Create and fund user accounts
         let alice = Keypair::new();
         svm.airdrop(&alice.pubkey(), 1_000_000_000).unwrap();
 
-        let alice_usdc_account = airdrop_usdc(svm, usdc_mint, alice.pubkey(), 100 * USDC_TOKEN);
-
-        let balance = get_token_account_balance(&svm, &alice_usdc_account);
-        println!("Alice's USDC balance: {}", balance.unwrap() / USDC_TOKEN);
+        let alice_usdc_account =
+            airdrop_usdc(&mut svm, usdc_mint, alice.pubkey(), 100 * USDC_TOKEN);
 
         let bob = Keypair::new();
         svm.airdrop(&bob.pubkey(), 1_000_000_000).unwrap();
 
-        let bob_usdc_account = airdrop_usdc(svm, usdc_mint, bob.pubkey(), 100 * USDC_TOKEN);
+        let bob_usdc_account = airdrop_usdc(&mut svm, usdc_mint, bob.pubkey(), 100 * USDC_TOKEN);
 
-        let balance = get_token_account_balance(&svm, &bob_usdc_account);
-        println!("Bob's USDC balance: {}", balance.unwrap() / USDC_TOKEN);
-
-        TestHarness {
-            alice,
-            alice_usdc_account,
-            bob,
-            bob_usdc_account,
-            program_id,
-            usdc_mint,
-        }
+        (
+            svm,
+            TestHarness {
+                alice,
+                alice_usdc_account,
+                bob,
+                bob_usdc_account,
+                program_id,
+                usdc_mint,
+            },
+        )
     }
 }
 
@@ -148,6 +149,17 @@ pub fn generate_id() -> u64 {
 pub fn get_initialize_discriminator() -> Vec<u8> {
     let discriminator_input = b"global:initialize";
     anchor_lang::solana_program::hash::hash(discriminator_input).to_bytes()[..8].to_vec()
+}
+
+pub fn get_meditation_plan(
+    svm: &mut LiteSVM,
+    meditation_plan: &Pubkey,
+) -> (Account, MeditationPlan) {
+    let plan_account = svm.get_account(&meditation_plan).unwrap();
+
+    let plan = MeditationPlan::try_deserialize(&mut plan_account.data.as_slice())
+        .expect("Anchor deserialize should succeed");
+    (plan_account, plan)
 }
 
 pub struct InitializeAccounts {
