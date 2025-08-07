@@ -22,7 +22,12 @@ jobs:
         with:
           node-version: '22.16.0'
           cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
+
+      - name: Enable pnpm via corepack
+        run: corepack enable
+
+      - name: Install NPM Packages
+        run: pnpm install --frozen-lockfile
 
       - name: Install Rust
         run: |

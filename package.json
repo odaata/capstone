@@ -1,6 +1,7 @@
 {
   "name": "capstone",
   "license": "MIT",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "lint": "eslint ./{app,tests,migrations}/**/*",
     "lint:fix": "pnpm lint --fix",
