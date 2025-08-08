@@ -35,6 +35,10 @@ pub mod capstone {
             &ctx.bumps,
         )
     }
+
+    pub fn attest(ctx: Context<Attest>, started_at: i64, ended_at: i64) -> Result<()> {
+        ctx.accounts.attest(started_at, ended_at)
+    }
 }
 
 #[cfg(test)]

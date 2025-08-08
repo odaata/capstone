@@ -163,6 +163,11 @@ pub fn get_initialize_discriminator() -> Vec<u8> {
     anchor_lang::solana_program::hash::hash(discriminator_input).to_bytes()[..8].to_vec()
 }
 
+pub fn get_attest_discriminator() -> Vec<u8> {
+    let discriminator_input = b"global:attest";
+    anchor_lang::solana_program::hash::hash(discriminator_input).to_bytes()[..8].to_vec()
+}
+
 pub fn get_meditation_plan(
     svm: &mut LiteSVM,
     meditation_plan: &Pubkey,
@@ -191,7 +196,7 @@ pub struct InitializeAccounts {
 /// program IDs (associated_token_program, token_program, system_program) that
 /// are always the same constants across all tests. Instead of copy-pasting
 /// these three lines in every test, this helper focuses on the variable fields.
-pub fn build_initialize_accounts(
+fn build_initialize_accounts(
     owner: Pubkey,
     mint: Pubkey,
     owner_ata: Pubkey,
@@ -210,7 +215,7 @@ pub fn build_initialize_accounts(
     }
 }
 
-pub fn build_initialize_instruction(
+fn build_initialize_instruction(
     id: u64,
     number_of_days: u8,
     daily_frequency: u8,
@@ -285,4 +290,54 @@ pub fn execute_initialize(
     )?;
 
     Ok((meditation_plan, meditation_bump, vault))
+}
+
+// Attest helpers
+pub struct AttestAccounts {
+    pub attester: Pubkey,
+    pub meditation_plan: Pubkey,
+    pub system_program: Pubkey,
+}
+
+fn build_attest_accounts(attester: Pubkey, meditation_plan: Pubkey) -> AttestAccounts {
+    AttestAccounts {
+        system_program: anchor_lang::system_program::ID,
+        attester,
+        meditation_plan,
+    }
+}
+
+fn build_attest_instruction(
+    started_at: i64,
+    ended_at: i64,
+    accounts: AttestAccounts,
+) -> Instruction {
+    let mut instruction_data = get_attest_discriminator();
+    instruction_data.extend_from_slice(&started_at.to_le_bytes());
+    instruction_data.extend_from_slice(&ended_at.to_le_bytes());
+
+    let account_metas = vec![
+        AccountMeta::new(accounts.attester, true),
+        AccountMeta::new(accounts.meditation_plan, false),
+        AccountMeta::new_readonly(accounts.system_program, false),
+    ];
+
+    Instruction {
+        program_id: get_program_id(),
+        accounts: account_metas,
+        data: instruction_data,
+    }
+}
+
+/// Initializes a meditation plan and sends USDC to vault
+pub fn execute_attest(
+    svm: &mut LiteSVM,
+    attester: &Keypair,
+    meditation_plan: Pubkey,
+    started_at: i64,
+    ended_at: i64,
+) -> Result<(), SolanaKiteError> {
+    let accounts = build_attest_accounts(attester.pubkey(), meditation_plan);
+    let instruction = build_attest_instruction(started_at, ended_at, accounts);
+    send_transaction_from_instructions(svm, vec![instruction], &[attester], &attester.pubkey())
 }
