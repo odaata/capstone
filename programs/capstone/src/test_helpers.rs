@@ -24,6 +24,13 @@ pub const USDC_MINT: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 /// Standard token unit for USDC for 6 decimals)
 pub const USDC_TOKEN: u64 = 1_000_000;
+pub const FIFTY_USDC: u64 = 50 * USDC_TOKEN;
+
+// Valid settings for initializing meditation plans in tests
+pub const COMMITMENT_STAKE: u64 = FIFTY_USDC;
+pub const DAILY_FREQUENCY: u8 = 1;
+pub const DURATION_MINUTES: u8 = 20;
+pub const NUMBER_OF_DAYS: u8 = 7;
 
 // Holds everything needed to test the meditation plan contract
 pub struct TestHarness {
