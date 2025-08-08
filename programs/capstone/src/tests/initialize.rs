@@ -3,15 +3,9 @@ use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 
 use crate::test_helpers::{
-    airdrop_usdc, execute_initialize, generate_id, get_meditation_plan, TestHarness, USDC_TOKEN,
+    airdrop_usdc, execute_initialize, generate_id, get_meditation_plan, TestHarness,
+    COMMITMENT_STAKE, DAILY_FREQUENCY, DURATION_MINUTES, FIFTY_USDC, NUMBER_OF_DAYS, USDC_TOKEN,
 };
-
-// Valid settings for testing
-const FIFTY_USDC: u64 = 50 * USDC_TOKEN;
-const NUMBER_OF_DAYS: u8 = 7;
-const DAILY_FREQUENCY: u8 = 1;
-const DURATION_MINUTES: u8 = 20;
-const COMMITMENT_STAKE: u64 = FIFTY_USDC;
 
 #[test]
 fn test_initialize_succeeds() {
@@ -21,7 +15,6 @@ fn test_initialize_succeeds() {
     assert_eq!(balance.unwrap(), USDC_TOKEN * 100);
 
     let id = generate_id();
-
     let result = execute_initialize(
         &mut svm,
         harness.usdc_mint,
