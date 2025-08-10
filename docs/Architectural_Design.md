@@ -35,4 +35,54 @@
 > for updating penalties and rewards. Instead, the protocol will update the user's account
 > at the end of the meditation plan as part of the complete instruction.
 
-<!-- TODO: Add more definitive diagrams here -->
+# Meditation Instruction Flow
+
+Here are the sequence diagrams for the three main instructions in the program: `initialize`, `attest`, and `complete`.
+These were generated from the Capstone Architecture Design document and are included here for reference.
+
+## 1. initialize
+
+```mermaid
+sequenceDiagram
+    participant User as User wallet
+    participant Program as Solana Program (Anchor)
+    participant MedAcct as MeditationAccount (PDA)
+    participant USDC as SPL Token (USDC)
+    participant Sys as Solana Runtime
+    User ->> Program: send `initialize` instruction + deposit (sign)
+    Program ->> Sys: create MedAcct PDA (init account, rent)
+    Program ->> USDC: transfer USDC from User -> escrow vault (PDA) via Token Program
+    Program ->> MedAcct: write plan data (start, end, freq, session_length, stake, rules)
+```
+
+## 2. attest
+
+```mermaid
+sequenceDiagram
+    participant User as User wallet
+    participant Program as Solana Program (Anchor)
+    participant MedAcct as MeditationAccount (PDA)
+    participant Sys as Solana Runtime
+    User ->> Program: send `attest` instruction with session metadata
+    Program ->> MedAcct: load plan state (sessions completed today, plan end/date)
+    Program ->> Sys: get current Clock time
+    alt session_duration >= committed_duration AND sessions_today < max_per_day
+        Program ->> MedAcct: increase rewards_earned by stake * session_reward_pct
+    else invalid (too short or daily limit reached or plan inactive)
+        Program -->> User: error (rejection reason)
+    end
+```
+
+## 3. complete
+
+```mermaid
+sequenceDiagram
+    participant User as User wallet
+    participant Program as Solana Program (Anchor)
+    participant MedAcct as MeditationAccount (PDA)
+    participant USDC as SPL Token (USDC)
+    User ->> Program: send `complete` instruction
+    Program ->> MedAcct: verify plan ended or all sessions completed
+    Program ->> MedAcct: calculate final reward_amount (apply penalties/bonuses)
+    Program ->> USDC: transfer USDC from escrow PDA -> User token account
+```
