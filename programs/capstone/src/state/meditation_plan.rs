@@ -42,6 +42,11 @@ impl MeditationPlan {
         if all_sessions_completed {
             self.rewards = self.commitment_stake;
             return Ok(());
+        } else if self.attestations.len() == 0 {
+            // If no sessions were completed, the entire stake is a penalty
+            self.penalties = self.commitment_stake;
+            self.rewards = 0;
+            return Ok(());
         }
 
         // If not all sessions are completed, apply penalties
