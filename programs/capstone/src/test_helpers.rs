@@ -1,6 +1,4 @@
-use crate::MeditationPlan;
-use anchor_lang::Discriminator;
-use anchor_lang::{AccountDeserialize, AnchorSerialize};
+use anchor_lang::{AccountDeserialize, AnchorSerialize, Discriminator};
 use litesvm::LiteSVM;
 use solana_account::Account;
 use solana_clock::Clock;
@@ -19,6 +17,8 @@ use spl_token::ID as TOKEN_PROGRAM_ID;
 use std::cell::Cell;
 use std::str::FromStr;
 
+use crate::MeditationPlan;
+
 pub const PROGRAM_ID: &str = "Bvw5aYMCJDM1136hC5GLqmtq1LbsqSKEgC4owCQj9ZYm";
 
 pub const USDC_MINT: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
@@ -26,6 +26,8 @@ pub const USDC_MINT: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 /// Standard token unit for USDC for 6 decimals)
 pub const USDC_TOKEN: u64 = 1_000_000;
 pub const FIFTY_USDC: u64 = 50 * USDC_TOKEN;
+pub const HUNDY_USDC: u64 = 100 * USDC_TOKEN;
+pub const REWARDS_PER_SESSION: u64 = FIFTY_USDC / 7;
 
 // Valid settings for initializing meditation plans in tests
 pub const COMMITMENT_STAKE: u64 = FIFTY_USDC;
@@ -178,6 +180,11 @@ pub fn get_attest_discriminator() -> Vec<u8> {
     anchor_lang::solana_program::hash::hash(discriminator_input).to_bytes()[..8].to_vec()
 }
 
+pub fn get_complete_discriminator() -> Vec<u8> {
+    let discriminator_input = b"global:complete";
+    anchor_lang::solana_program::hash::hash(discriminator_input).to_bytes()[..8].to_vec()
+}
+
 pub fn get_meditation_plan(
     svm: &mut LiteSVM,
     meditation_plan: &Pubkey,
@@ -326,8 +333,8 @@ pub fn execute_initialize(
     Ok((meditation_plan, meditation_bump, vault))
 }
 
-pub fn create_standard_plan(svm: &mut LiteSVM, harness: &TestHarness) -> Pubkey {
-    let (meditation_plan, _meditation_bump, _vault) = execute_initialize(
+pub fn create_standard_plan(svm: &mut LiteSVM, harness: &TestHarness) -> (Pubkey, Pubkey) {
+    let (meditation_plan, _meditation_bump, vault) = execute_initialize(
         svm,
         harness.usdc_mint,
         &harness.alice,
@@ -343,7 +350,7 @@ pub fn create_standard_plan(svm: &mut LiteSVM, harness: &TestHarness) -> Pubkey 
     // Set the clock to be after the ended_at time so a standard attestation is valid by default
     set_clock(svm, ENDED_AT + 1);
 
-    meditation_plan
+    (meditation_plan, vault)
 }
 
 // Attest helpers
@@ -383,7 +390,6 @@ fn build_attest_instruction(
     }
 }
 
-/// Initializes a meditation plan and sends USDC to vault
 pub fn execute_attest(
     svm: &mut LiteSVM,
     attester: &Keypair,
@@ -396,13 +402,83 @@ pub fn execute_attest(
     let result =
         send_transaction_from_instructions(svm, vec![instruction], &[attester], &attester.pubkey());
     match &result {
-        Ok(_) => println!("Attestation succeeded"),
-        Err(SolanaKiteError::TransactionFailed(e)) => {
-            println!("Transaction failed: {:?}", e);
-        }
-        Err(e) => {
-            println!("Unknown error: {:?}", e);
-        }
-    };
+        Ok(_) => println!("Completion succeeded"),
+        Err(SolanaKiteError::TransactionFailed(e)) => println!("Transaction failed: {:?}", e),
+        Err(e) => println!("Unknown error: {:?}", e),
+    }
+    result
+}
+
+// Complete helpers
+pub struct CompleteAccounts {
+    pub associated_token_program: Pubkey,
+    pub meditation_plan: Pubkey,
+    pub mint: Pubkey,
+    pub owner: Pubkey,
+    pub owner_ata: Pubkey,
+    pub system_program: Pubkey,
+    pub token_program: Pubkey,
+    pub vault: Pubkey,
+}
+
+fn build_complete_accounts(
+    owner: Pubkey,
+    mint: Pubkey,
+    owner_ata: Pubkey,
+    meditation_plan: Pubkey,
+    vault: Pubkey,
+) -> CompleteAccounts {
+    CompleteAccounts {
+        associated_token_program: spl_associated_token_account::ID,
+        token_program: spl_token::ID,
+        system_program: anchor_lang::system_program::ID,
+        owner,
+        mint,
+        owner_ata,
+        meditation_plan,
+        vault,
+    }
+}
+
+fn build_complete_instruction(accounts: CompleteAccounts) -> Instruction {
+    let instruction_data = get_complete_discriminator();
+
+    let account_metas = vec![
+        AccountMeta::new(accounts.owner, true),
+        AccountMeta::new(accounts.meditation_plan, false),
+        AccountMeta::new_readonly(accounts.mint, false),
+        AccountMeta::new(accounts.owner_ata, false),
+        AccountMeta::new(accounts.vault, false),
+        AccountMeta::new_readonly(accounts.associated_token_program, false),
+        AccountMeta::new_readonly(accounts.token_program, false),
+        AccountMeta::new_readonly(accounts.system_program, false),
+    ];
+
+    Instruction {
+        program_id: get_program_id(),
+        accounts: account_metas,
+        data: instruction_data,
+    }
+}
+
+pub fn execute_complete(
+    svm: &mut LiteSVM,
+    usdc_mint: Pubkey,
+    owner: &Keypair,
+    owner_ata: Pubkey,
+    meditation_plan: Pubkey,
+    vault: Pubkey,
+) -> Result<(), SolanaKiteError> {
+    let accounts =
+        build_complete_accounts(owner.pubkey(), usdc_mint, owner_ata, meditation_plan, vault);
+    let instruction = build_complete_instruction(accounts);
+    let result =
+        send_transaction_from_instructions(svm, vec![instruction], &[owner], &owner.pubkey());
+
+    match &result {
+        Ok(_) => println!("Completion succeeded"),
+        Err(SolanaKiteError::TransactionFailed(e)) => println!("Transaction failed: {:?}", e),
+        Err(e) => println!("Unknown error: {:?}", e),
+    }
     result
 }

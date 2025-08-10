@@ -26,8 +26,10 @@ pub enum MeditationPlanError {
     PlanExpired,
     #[msg("Meditation plan is inactive")]
     PlanInactive,
+    #[msg("Meditation plan has not ended yet")]
+    PlanNotEnded,
     #[msg("Meditation plan has not started yet")]
-    PlanNotSTarted,
+    PlanNotStarted,
     #[msg("Unauthorized access to the meditation plan")]
     UnauthorizedAccess,
 }

@@ -10,7 +10,7 @@ use crate::MeditationPlan;
 #[test]
 fn test_attest_succeeds() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
 
     let result = execute_attest(
         &mut svm,
@@ -51,7 +51,7 @@ fn test_attest_succeeds() {
 #[test]
 fn test_unauthorized_attester_fails() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
 
     let result = execute_attest(
         &mut svm,
@@ -76,7 +76,7 @@ fn test_unauthorized_attester_fails() {
 #[test]
 fn test_inactive_plan_fails() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
 
     let (_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
     let new_plan = MeditationPlan {
@@ -108,7 +108,7 @@ fn test_inactive_plan_fails() {
 #[test]
 fn test_completed_plan_fails() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
 
     let (_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
     let new_plan = MeditationPlan {
@@ -140,7 +140,7 @@ fn test_completed_plan_fails() {
 #[test]
 fn test_plan_ended_before_started_at_fails() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
     let (_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
 
     let started_at = plan.end_at + 1; // Set start time after plan start time
@@ -169,7 +169,7 @@ fn test_plan_ended_before_started_at_fails() {
 #[test]
 fn test_duration_below_plan_duration_fails() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
 
     let result = execute_attest(
         &mut svm,
@@ -194,7 +194,7 @@ fn test_duration_below_plan_duration_fails() {
 #[test]
 fn test_duration_above_maximum_fails() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
 
     let ended_at = STARTED_AT + (8 * HOUR_IN_SECONDS) + 1; // More than 8 hours
     set_clock(&mut svm, ended_at + 1); // Set clock so attestation is in the past
@@ -222,7 +222,7 @@ fn test_duration_above_maximum_fails() {
 #[test]
 fn test_daily_frequency_exceeded_fails() {
     let (mut svm, harness) = TestHarness::new();
-    let meditation_plan = create_standard_plan(&mut svm, &harness);
+    let (meditation_plan, _vault) = create_standard_plan(&mut svm, &harness);
 
     let result = execute_attest(
         &mut svm,
