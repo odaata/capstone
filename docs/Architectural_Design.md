@@ -17,15 +17,22 @@
     * The protocol shall allow a user to submit a meditation attestation, validating:
         * Session duration is greater than or equal to the commitment duration
         * All sessions for the current 24-hour period have not yet been completed
-    * The protocol shall update the meditation account to release rewards for each session using a simple percentage calculation
+    * The protocol shall update the meditation account to release rewards for each session using a simple percentage
+      calculation
 * **Penalty Mechanism:**
-    * The protocol shall update the meditation account *daily* to incur penalties for missed sessions using the same rewards percentage calculation
+    * The protocol shall update the meditation account *daily* to incur penalties for missed sessions using the same
+      rewards percentage calculation
 * **Meditation Plan Completion:**
     * The protocol shall allow a user to see final plan results
     * The protocol shall allow a user to claim rewards earned
 
 # Overview
 
-> See the [PDF from assignment 3](../assignments/Architecture%20Design.pdf) for diagrams. 
+> See the [Capstone Architecture Design](./Capstone_Architecture_Design.pdf) for diagrams.
+> These diagrams were created using Miro and then exported to a Google Doc and then to PDF.
+>
+> During the development of the MVP, the scope was reduced to remove the reliance on a cron job
+> for updating penalties and rewards. Instead, the protocol will update the user's account
+> at the end of the meditation plan as part of the complete instruction.
 
 <!-- TODO: Add more definitive diagrams here -->
