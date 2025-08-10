@@ -62,6 +62,11 @@ impl<'info> Complete<'info> {
     }
 
     fn transfer_rewards(&mut self) -> Result<()> {
+        let rewards = self.meditation_plan.rewards.min(self.vault.amount);
+        if rewards < 1 {
+            return Ok(());
+        }
+
         let owner_key = self.meditation_plan.owner.key();
         let id_bytes = self.meditation_plan.id.to_le_bytes();
         let seeds = &[
@@ -81,7 +86,6 @@ impl<'info> Complete<'info> {
         let cpi_program = self.token_program.to_account_info();
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
 
-        let rewards = self.meditation_plan.rewards.min(self.vault.amount);
         transfer_checked(cpi_ctx, rewards, self.mint.decimals)
     }
 }

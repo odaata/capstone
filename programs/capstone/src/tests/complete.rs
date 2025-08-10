@@ -185,6 +185,48 @@ fn test_complete_with_penalties_succeeds() {
 }
 
 #[test]
+fn test_complete_without_any_sessions_succeeds() {
+    let (mut svm, harness) = TestHarness::new();
+
+    let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
+    assert_eq!(balance.unwrap(), HUNDY_USDC);
+
+    let (meditation_plan, vault) = create_standard_plan(&mut svm, &harness);
+
+    let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
+    assert_eq!(balance.unwrap(), FIFTY_USDC);
+
+    let balance = get_token_account_balance(&svm, &vault);
+    assert_eq!(balance.unwrap(), FIFTY_USDC);
+
+    let (_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
+
+    set_clock(&mut svm, plan.end_at + 1); // Set clock to after the plan end date
+    let result = execute_complete(
+        &mut svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        meditation_plan,
+        vault,
+    );
+    assert!(result.is_ok(), "Complete should succeed");
+
+    let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
+    assert_eq!(balance.unwrap(), FIFTY_USDC);
+
+    let balance = get_token_account_balance(&svm, &vault);
+    assert_eq!(balance.unwrap(), FIFTY_USDC);
+
+    let (_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
+    assert_eq!(plan.attestations.len(), 0);
+    assert_eq!(plan.is_active, false);
+    assert_eq!(plan.is_completed, true);
+    assert_eq!(plan.penalties, FIFTY_USDC);
+    assert_eq!(plan.rewards, 0);
+}
+
+#[test]
 fn test_unauthorized_owner_fails() {
     let (mut svm, harness) = TestHarness::new();
     let (meditation_plan, vault) = create_standard_plan(&mut svm, &harness);
