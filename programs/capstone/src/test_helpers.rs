@@ -60,7 +60,7 @@ impl TestHarness {
         let program_id = get_program_id();
         deploy_program(&mut svm, &program_id, "../../target/deploy/capstone.so").unwrap();
 
-        let usdc_mint = create_usdc_mint(&mut svm);
+        let usdc_mint = create_usdc_mint(&mut svm, None);
 
         // Create and fund user accounts
         let alice = Keypair::new();
@@ -94,8 +94,8 @@ pub fn set_clock(svm: &mut LiteSVM, unix_timestamp: i64) {
     svm.set_sysvar::<Clock>(&clock);
 }
 
-fn create_usdc_mint(svm: &mut LiteSVM) -> Pubkey {
-    let usdc_mint = Pubkey::from_str(USDC_MINT).unwrap();
+fn create_usdc_mint(svm: &mut LiteSVM, usdc_mint_override: Option<Pubkey>) -> Pubkey {
+    let usdc_mint = usdc_mint_override.unwrap_or_else(|| Pubkey::from_str(USDC_MINT).unwrap());
 
     // Initialize the USDC Mint based on the account downloaded from devnet
     // see @link https://solana.stackexchange.com/questions/23006/how-to-generate-usdt-mint-in-litesvm-anchor-tests
@@ -115,6 +115,10 @@ fn create_usdc_mint(svm: &mut LiteSVM) -> Pubkey {
     };
     svm.set_account(usdc_mint, usdc_mint_account_info).unwrap();
     usdc_mint
+}
+
+pub fn create_fake_usdc_mint(svm: &mut LiteSVM) -> Pubkey {
+    create_usdc_mint(svm, Some(Pubkey::new_unique()))
 }
 
 pub fn airdrop_usdc(
@@ -399,14 +403,7 @@ pub fn execute_attest(
 ) -> Result<(), SolanaKiteError> {
     let accounts = build_attest_accounts(attester.pubkey(), meditation_plan);
     let instruction = build_attest_instruction(started_at, ended_at, accounts);
-    let result =
-        send_transaction_from_instructions(svm, vec![instruction], &[attester], &attester.pubkey());
-    match &result {
-        Ok(_) => println!("Completion succeeded"),
-        Err(SolanaKiteError::TransactionFailed(e)) => println!("Transaction failed: {:?}", e),
-        Err(e) => println!("Unknown error: {:?}", e),
-    }
-    result
+    send_transaction_from_instructions(svm, vec![instruction], &[attester], &attester.pubkey())
 }
 
 // Complete helpers
@@ -472,13 +469,5 @@ pub fn execute_complete(
     let accounts =
         build_complete_accounts(owner.pubkey(), usdc_mint, owner_ata, meditation_plan, vault);
     let instruction = build_complete_instruction(accounts);
-    let result =
-        send_transaction_from_instructions(svm, vec![instruction], &[owner], &owner.pubkey());
-
-    match &result {
-        Ok(_) => println!("Completion succeeded"),
-        Err(SolanaKiteError::TransactionFailed(e)) => println!("Transaction failed: {:?}", e),
-        Err(e) => println!("Unknown error: {:?}", e),
-    }
-    result
+    send_transaction_from_instructions(svm, vec![instruction], &[owner], &owner.pubkey())
 }
