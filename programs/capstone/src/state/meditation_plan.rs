@@ -25,9 +25,36 @@ pub struct MeditationPlan {
 }
 
 impl MeditationPlan {
-    pub fn complete_plan(&mut self) -> Result<()> {
+    pub fn complete(&mut self) -> Result<()> {
+        let total_sessions = self.total_sessions();
+        let all_sessions_completed = self.attestations.len() >= total_sessions as usize;
+        let now = Clock::get()?.unix_timestamp;
+        let is_expired = now > self.end_at;
+        // Ensure the plan has ended
+        require!(
+            all_sessions_completed || is_expired,
+            MeditationPlanError::PlanNotEnded
+        );
+
         self.is_completed = true;
         self.is_active = false;
+
+        if all_sessions_completed {
+            self.rewards = self.commitment_stake;
+            return Ok(());
+        }
+
+        // If not all sessions are completed, apply penalties
+        let completed_sessions = self.attestations.len() as u64;
+        let penalty_per_session = self.reward_per_session(total_sessions);
+        let penalties = penalty_per_session
+            .checked_mul(total_sessions - completed_sessions)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        self.penalties = penalties;
+        self.rewards = self
+            .commitment_stake
+            .checked_sub(penalties)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
 
         Ok(())
     }
@@ -46,17 +73,25 @@ impl MeditationPlan {
             ended_at,
         });
 
-        let total_sessions = self.number_of_days * self.daily_frequency;
-        let reward_per_session = self
-            .commitment_stake
-            .checked_div(total_sessions as u64)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
+        let total_sessions = self.total_sessions();
+        let reward_per_session = self.reward_per_session(total_sessions);
         self.rewards = self
             .rewards
             .checked_add(reward_per_session)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         Ok(())
+    }
+
+    fn reward_per_session(&self, total_sessions: u64) -> u64 {
+        self.commitment_stake
+            .checked_div(total_sessions)
+            .ok_or(ProgramError::ArithmeticOverflow)
+            .unwrap()
+    }
+
+    fn total_sessions(&self) -> u64 {
+        self.number_of_days as u64 * self.daily_frequency as u64
     }
 
     fn validate_attestation(&self, attester: Pubkey, started_at: i64, ended_at: i64) -> Result<()> {
@@ -80,7 +115,7 @@ impl MeditationPlan {
         require_gte!(
             started_at,
             self.start_at,
-            MeditationPlanError::PlanNotSTarted
+            MeditationPlanError::PlanNotStarted
         );
 
         // Ensure the session started before the plan ended

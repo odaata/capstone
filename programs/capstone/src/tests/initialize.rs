@@ -5,7 +5,8 @@ use solana_signer::Signer;
 use crate::constants::DAY_IN_SECONDS;
 use crate::test_helpers::{
     airdrop_usdc, execute_initialize, generate_id, get_meditation_plan, TestHarness,
-    COMMITMENT_STAKE, DAILY_FREQUENCY, DURATION_MINUTES, FIFTY_USDC, NUMBER_OF_DAYS, USDC_TOKEN,
+    COMMITMENT_STAKE, DAILY_FREQUENCY, DURATION_MINUTES, FIFTY_USDC, HUNDY_USDC, NUMBER_OF_DAYS,
+    USDC_TOKEN,
 };
 
 #[test]
@@ -13,7 +14,7 @@ fn test_initialize_succeeds() {
     let (mut svm, harness) = TestHarness::new();
 
     let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
-    assert_eq!(balance.unwrap(), USDC_TOKEN * 100);
+    assert_eq!(balance.unwrap(), HUNDY_USDC);
 
     let id = generate_id();
     let result = execute_initialize(
@@ -29,9 +30,12 @@ fn test_initialize_succeeds() {
     );
     assert!(result.is_ok(), "Initialize should succeed");
 
-    let (meditation_plan, meditation_bump, _vault) = result.unwrap();
+    let (meditation_plan, meditation_bump, vault) = result.unwrap();
 
     let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
+    assert_eq!(balance.unwrap(), FIFTY_USDC);
+
+    let balance = get_token_account_balance(&svm, &vault);
     assert_eq!(balance.unwrap(), FIFTY_USDC);
 
     let (plan_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
@@ -105,7 +109,7 @@ fn test_duplicate_id_fails() {
 fn test_insufficient_usdc_fails() {
     let (mut svm, harness) = TestHarness::new();
     let balance = get_token_account_balance(&svm, &harness.alice_usdc_account);
-    assert_eq!(balance.unwrap(), USDC_TOKEN * 100);
+    assert_eq!(balance.unwrap(), HUNDY_USDC);
 
     let result = execute_initialize(
         &mut svm,
