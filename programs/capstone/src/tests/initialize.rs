@@ -2,16 +2,11 @@ use solana_kite::get_token_account_balance;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 
+use crate::constants::DAY_IN_SECONDS;
 use crate::test_helpers::{
-    airdrop_usdc, execute_initialize, generate_id, get_meditation_plan, TestHarness, USDC_TOKEN,
+    airdrop_usdc, execute_initialize, generate_id, get_meditation_plan, TestHarness,
+    COMMITMENT_STAKE, DAILY_FREQUENCY, DURATION_MINUTES, FIFTY_USDC, NUMBER_OF_DAYS, USDC_TOKEN,
 };
-
-// Valid settings for testing
-const FIFTY_USDC: u64 = 50 * USDC_TOKEN;
-const NUMBER_OF_DAYS: u8 = 7;
-const DAILY_FREQUENCY: u8 = 1;
-const DURATION_MINUTES: u8 = 20;
-const COMMITMENT_STAKE: u64 = FIFTY_USDC;
 
 #[test]
 fn test_initialize_succeeds() {
@@ -21,7 +16,6 @@ fn test_initialize_succeeds() {
     assert_eq!(balance.unwrap(), USDC_TOKEN * 100);
 
     let id = generate_id();
-
     let result = execute_initialize(
         &mut svm,
         harness.usdc_mint,
@@ -49,14 +43,14 @@ fn test_initialize_succeeds() {
     assert_eq!(plan.daily_frequency, DAILY_FREQUENCY);
     assert_eq!(plan.duration_minutes, DURATION_MINUTES);
     assert_eq!(plan.id, id);
-    assert_eq!(plan.is_active, false);
+    assert_eq!(plan.is_active, true);
     assert_eq!(plan.is_completed, false);
     assert_eq!(plan.number_of_days, NUMBER_OF_DAYS);
     assert_eq!(plan.owner, harness.alice.pubkey());
     assert_eq!(plan.penalties, 0);
     assert_eq!(plan.rewards, 0);
     assert_eq!(plan.start_at, 0);
-    assert_eq!(plan.end_at, NUMBER_OF_DAYS as i64 * 24 * 60 * 60);
+    assert_eq!(plan.end_at, NUMBER_OF_DAYS as i64 * DAY_IN_SECONDS);
 }
 
 #[test]

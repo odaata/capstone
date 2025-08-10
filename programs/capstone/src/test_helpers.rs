@@ -1,6 +1,9 @@
-use anchor_lang::AccountDeserialize;
+use crate::MeditationPlan;
+use anchor_lang::Discriminator;
+use anchor_lang::{AccountDeserialize, AnchorSerialize};
 use litesvm::LiteSVM;
 use solana_account::Account;
+use solana_clock::Clock;
 use solana_instruction::{AccountMeta, Instruction};
 use solana_keypair::Keypair;
 use solana_kite::{
@@ -11,12 +14,10 @@ use solana_program_pack::Pack;
 use solana_pubkey::{pubkey, Pubkey};
 use solana_signer::Signer;
 use spl_associated_token_account::get_associated_token_address;
-use spl_token::state::{Account as TokenAccount, AccountState};
+use spl_token::state::{Account as TokenAccount, AccountState as TokenAccountState};
 use spl_token::ID as TOKEN_PROGRAM_ID;
 use std::cell::Cell;
 use std::str::FromStr;
-
-use crate::MeditationPlan;
 
 pub const PROGRAM_ID: &str = "Bvw5aYMCJDM1136hC5GLqmtq1LbsqSKEgC4owCQj9ZYm";
 
@@ -24,6 +25,16 @@ pub const USDC_MINT: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 /// Standard token unit for USDC for 6 decimals)
 pub const USDC_TOKEN: u64 = 1_000_000;
+pub const FIFTY_USDC: u64 = 50 * USDC_TOKEN;
+
+// Valid settings for initializing meditation plans in tests
+pub const COMMITMENT_STAKE: u64 = FIFTY_USDC;
+pub const DAILY_FREQUENCY: u8 = 1;
+pub const DURATION_MINUTES: u8 = 20;
+pub const NUMBER_OF_DAYS: u8 = 7;
+
+pub const STARTED_AT: i64 = 0; // Use 0 for testing
+pub const ENDED_AT: i64 = 30 * 60; // 30 minutes later
 
 // Holds everything needed to test the meditation plan contract
 pub struct TestHarness {
@@ -75,6 +86,12 @@ impl TestHarness {
     }
 }
 
+pub fn set_clock(svm: &mut LiteSVM, unix_timestamp: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp = unix_timestamp;
+    svm.set_sysvar::<Clock>(&clock);
+}
+
 fn create_usdc_mint(svm: &mut LiteSVM) -> Pubkey {
     let usdc_mint = Pubkey::from_str(USDC_MINT).unwrap();
 
@@ -110,7 +127,7 @@ pub fn airdrop_usdc(
         owner: recipient,
         amount,
         delegate: COption::None,
-        state: AccountState::Initialized,
+        state: TokenAccountState::Initialized,
         is_native: COption::None,
         delegated_amount: 0,
         close_authority: COption::None,
@@ -156,6 +173,11 @@ pub fn get_initialize_discriminator() -> Vec<u8> {
     anchor_lang::solana_program::hash::hash(discriminator_input).to_bytes()[..8].to_vec()
 }
 
+pub fn get_attest_discriminator() -> Vec<u8> {
+    let discriminator_input = b"global:attest";
+    anchor_lang::solana_program::hash::hash(discriminator_input).to_bytes()[..8].to_vec()
+}
+
 pub fn get_meditation_plan(
     svm: &mut LiteSVM,
     meditation_plan: &Pubkey,
@@ -164,6 +186,30 @@ pub fn get_meditation_plan(
 
     let plan = MeditationPlan::try_deserialize(&mut plan_account.data.as_slice())
         .expect("Anchor deserialize should succeed");
+    (plan_account, plan)
+}
+
+pub fn set_meditation_plan(
+    svm: &mut LiteSVM,
+    meditation_plan: Pubkey,
+    plan: MeditationPlan,
+) -> (Account, MeditationPlan) {
+    let plan_account = svm.get_account(&meditation_plan).unwrap();
+
+    let mut data = MeditationPlan::DISCRIMINATOR.to_vec();
+    data.extend(plan.try_to_vec().expect("Anchor serialize should succeed"));
+    // plan.try_serialize(&mut data)
+    svm.set_account(
+        meditation_plan,
+        Account {
+            lamports: plan_account.lamports,
+            data,
+            owner: plan_account.owner,
+            executable: plan_account.executable,
+            rent_epoch: plan_account.rent_epoch,
+        },
+    )
+    .unwrap();
     (plan_account, plan)
 }
 
@@ -184,7 +230,7 @@ pub struct InitializeAccounts {
 /// program IDs (associated_token_program, token_program, system_program) that
 /// are always the same constants across all tests. Instead of copy-pasting
 /// these three lines in every test, this helper focuses on the variable fields.
-pub fn build_initialize_accounts(
+fn build_initialize_accounts(
     owner: Pubkey,
     mint: Pubkey,
     owner_ata: Pubkey,
@@ -203,7 +249,7 @@ pub fn build_initialize_accounts(
     }
 }
 
-pub fn build_initialize_instruction(
+fn build_initialize_instruction(
     id: u64,
     number_of_days: u8,
     daily_frequency: u8,
@@ -278,4 +324,85 @@ pub fn execute_initialize(
     )?;
 
     Ok((meditation_plan, meditation_bump, vault))
+}
+
+pub fn create_standard_plan(svm: &mut LiteSVM, harness: &TestHarness) -> Pubkey {
+    let (meditation_plan, _meditation_bump, _vault) = execute_initialize(
+        svm,
+        harness.usdc_mint,
+        &harness.alice,
+        harness.alice_usdc_account,
+        generate_id(),
+        NUMBER_OF_DAYS,
+        DAILY_FREQUENCY,
+        DURATION_MINUTES,
+        COMMITMENT_STAKE,
+    )
+    .expect("Initialization should succeed");
+
+    // Set the clock to be after the ended_at time so a standard attestation is valid by default
+    set_clock(svm, ENDED_AT + 1);
+
+    meditation_plan
+}
+
+// Attest helpers
+pub struct AttestAccounts {
+    pub attester: Pubkey,
+    pub meditation_plan: Pubkey,
+    pub system_program: Pubkey,
+}
+
+fn build_attest_accounts(attester: Pubkey, meditation_plan: Pubkey) -> AttestAccounts {
+    AttestAccounts {
+        system_program: anchor_lang::system_program::ID,
+        attester,
+        meditation_plan,
+    }
+}
+
+fn build_attest_instruction(
+    started_at: i64,
+    ended_at: i64,
+    accounts: AttestAccounts,
+) -> Instruction {
+    let mut instruction_data = get_attest_discriminator();
+    instruction_data.extend_from_slice(&started_at.to_le_bytes());
+    instruction_data.extend_from_slice(&ended_at.to_le_bytes());
+
+    let account_metas = vec![
+        AccountMeta::new(accounts.attester, true),
+        AccountMeta::new(accounts.meditation_plan, false),
+        AccountMeta::new_readonly(accounts.system_program, false),
+    ];
+
+    Instruction {
+        program_id: get_program_id(),
+        accounts: account_metas,
+        data: instruction_data,
+    }
+}
+
+/// Initializes a meditation plan and sends USDC to vault
+pub fn execute_attest(
+    svm: &mut LiteSVM,
+    attester: &Keypair,
+    meditation_plan: Pubkey,
+    started_at: i64,
+    ended_at: i64,
+) -> Result<(), SolanaKiteError> {
+    let accounts = build_attest_accounts(attester.pubkey(), meditation_plan);
+    let instruction = build_attest_instruction(started_at, ended_at, accounts);
+    let result =
+        send_transaction_from_instructions(svm, vec![instruction], &[attester], &attester.pubkey());
+    match &result {
+        Ok(_) => println!("Attestation succeeded"),
+        Err(SolanaKiteError::TransactionFailed(e)) => {
+            println!("Transaction failed: {:?}", e);
+        }
+        Err(e) => {
+            println!("Unknown error: {:?}", e);
+        }
+    };
+    result
 }
