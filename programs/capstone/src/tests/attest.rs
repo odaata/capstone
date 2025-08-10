@@ -12,15 +12,14 @@ fn test_attest_succeeds() {
     let (mut svm, harness) = TestHarness::new();
     let meditation_plan = create_standard_plan(&mut svm, &harness);
 
-    // Execute the attest instructions
-    execute_attest(
+    let result = execute_attest(
         &mut svm,
         &harness.alice,
         meditation_plan,
         STARTED_AT,
         ENDED_AT,
-    )
-    .expect("Failed to execute attest");
+    );
+    assert!(result.is_ok(), "Attestation should succeed");
 
     let (plan_account, plan) = get_meditation_plan(&mut svm, &meditation_plan);
     assert_eq!(plan_account.owner, harness.program_id);
@@ -42,10 +41,9 @@ fn test_attest_succeeds() {
     assert_eq!(plan.is_completed, false, "Plan should not be completed yet");
     assert_eq!(plan.penalties, 0, "There should be no penalties yet");
     // 7 days @ once per day = 1/7 of the commitment stake should be rewarded
-    let expected_rewards = FIFTY_USDC / 7;
-    println!("Expected rewards: {}", expected_rewards);
     assert_eq!(
-        plan.rewards, 7_142_857u64,
+        plan.rewards,
+        FIFTY_USDC / 7,
         "The rewards for a single session should be added to the plan"
     );
 }
@@ -55,7 +53,7 @@ fn test_unauthorized_attester_fails() {
     let (mut svm, harness) = TestHarness::new();
     let meditation_plan = create_standard_plan(&mut svm, &harness);
 
-    let attest_result = execute_attest(
+    let result = execute_attest(
         &mut svm,
         &harness.bob,
         meditation_plan,
@@ -63,11 +61,11 @@ fn test_unauthorized_attester_fails() {
         ENDED_AT,
     );
     assert!(
-        attest_result.is_err(),
+        result.is_err(),
         "Attestation should fail when attester is not plan owner"
     );
     assert!(
-        attest_result
+        result
             .unwrap_err()
             .to_string()
             .contains("Error Code: UnauthorizedAccess"),
@@ -87,7 +85,7 @@ fn test_inactive_plan_fails() {
     };
     set_meditation_plan(&mut svm, meditation_plan, new_plan);
 
-    let attest_result = execute_attest(
+    let result = execute_attest(
         &mut svm,
         &harness.alice,
         meditation_plan,
@@ -95,11 +93,11 @@ fn test_inactive_plan_fails() {
         ENDED_AT,
     );
     assert!(
-        attest_result.is_err(),
+        result.is_err(),
         "Attestation should fail when plan inactive"
     );
     assert!(
-        attest_result
+        result
             .unwrap_err()
             .to_string()
             .contains("Error Code: PlanInactive"),
@@ -119,7 +117,7 @@ fn test_completed_plan_fails() {
     };
     set_meditation_plan(&mut svm, meditation_plan, new_plan);
 
-    let attest_result = execute_attest(
+    let result = execute_attest(
         &mut svm,
         &harness.alice,
         meditation_plan,
@@ -127,11 +125,11 @@ fn test_completed_plan_fails() {
         ENDED_AT,
     );
     assert!(
-        attest_result.is_err(),
+        result.is_err(),
         "Attestation should fail when plan already completed"
     );
     assert!(
-        attest_result
+        result
             .unwrap_err()
             .to_string()
             .contains("Error Code: PlanCompleted"),
@@ -148,7 +146,7 @@ fn test_plan_ended_before_started_at_fails() {
     let started_at = plan.end_at + 1; // Set start time after plan start time
     let ended_at = started_at + ENDED_AT;
     set_clock(&mut svm, ended_at + 1); // Set clock so attestation is in the past
-    let attest_result = execute_attest(
+    let result = execute_attest(
         &mut svm,
         &harness.alice,
         meditation_plan,
@@ -156,11 +154,11 @@ fn test_plan_ended_before_started_at_fails() {
         ended_at,
     );
     assert!(
-        attest_result.is_err(),
+        result.is_err(),
         "Attestation should fail when start time past plan end time"
     );
     assert!(
-        attest_result
+        result
             .unwrap_err()
             .to_string()
             .contains("Error Code: PlanExpired"),
@@ -173,7 +171,7 @@ fn test_duration_below_plan_duration_fails() {
     let (mut svm, harness) = TestHarness::new();
     let meditation_plan = create_standard_plan(&mut svm, &harness);
 
-    let attest_result = execute_attest(
+    let result = execute_attest(
         &mut svm,
         &harness.alice,
         meditation_plan,
@@ -181,11 +179,11 @@ fn test_duration_below_plan_duration_fails() {
         19 * 60, // Less than plan duration
     );
     assert!(
-        attest_result.is_err(),
+        result.is_err(),
         "Attestation should fail when duration is less than plan duration"
     );
     assert!(
-        attest_result
+        result
             .unwrap_err()
             .to_string()
             .contains("Error Code: AttestationTooShort"),
@@ -201,7 +199,7 @@ fn test_duration_above_maximum_fails() {
     let ended_at = STARTED_AT + (8 * HOUR_IN_SECONDS) + 1; // More than 8 hours
     set_clock(&mut svm, ended_at + 1); // Set clock so attestation is in the past
 
-    let attest_result = execute_attest(
+    let result = execute_attest(
         &mut svm,
         &harness.alice,
         meditation_plan,
@@ -209,14 +207,52 @@ fn test_duration_above_maximum_fails() {
         ended_at,
     );
     assert!(
-        attest_result.is_err(),
+        result.is_err(),
         "Attestation should fail when duration is greater than 8 hours"
     );
     assert!(
-        attest_result
+        result
             .unwrap_err()
             .to_string()
             .contains("Error Code: AttestationTooLong"),
         "Incorrect error for attestation too long"
+    );
+}
+
+#[test]
+fn test_daily_frequency_exceeded_fails() {
+    let (mut svm, harness) = TestHarness::new();
+    let meditation_plan = create_standard_plan(&mut svm, &harness);
+
+    let result = execute_attest(
+        &mut svm,
+        &harness.alice,
+        meditation_plan,
+        STARTED_AT,
+        ENDED_AT,
+    );
+    assert!(result.is_ok(), "Attestation should succeed");
+
+    let started_at = ENDED_AT + 1_000; // Same day as first attestation
+    let ended_at = started_at + 30 * 60; // More than plan duration
+    set_clock(&mut svm, ended_at + 1); // Set clock so attestation is in the past
+
+    let result = execute_attest(
+        &mut svm,
+        &harness.alice,
+        meditation_plan,
+        started_at,
+        ended_at,
+    );
+    assert!(
+        result.is_err(),
+        "Attestation should fail daily frequency exceeded"
+    );
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Error Code: DailyFrequencyExceeded"),
+        "Incorrect error for daily frequency exceeded"
     );
 }

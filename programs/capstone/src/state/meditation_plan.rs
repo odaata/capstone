@@ -104,6 +104,7 @@ impl MeditationPlan {
             MeditationPlanError::AttestationTooLong
         );
 
+        // Ensure the daily frequency has not been exceeded
         let start_at = self.start_at;
         let elapsed_seconds = started_at - start_at;
         let day_index = elapsed_seconds / DAY_IN_SECONDS;
