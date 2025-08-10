@@ -4,6 +4,7 @@ use anchor_spl::{
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 
+use crate::constants::DAY_IN_SECONDS;
 use crate::constants::USDC_MINT;
 use crate::error::MeditationPlanError;
 use crate::state::MeditationPlan;
@@ -69,7 +70,7 @@ impl<'info> Initialize<'info> {
         )?;
 
         let start_at = Clock::get()?.unix_timestamp;
-        let end_at = start_at + (number_of_days as i64 * 24 * 60 * 60);
+        let end_at = start_at + (number_of_days as i64 * DAY_IN_SECONDS);
         self.meditation_plan.set_inner(MeditationPlan {
             attestations: vec![],
             bump: bumps.meditation_plan,
@@ -78,7 +79,7 @@ impl<'info> Initialize<'info> {
             duration_minutes,
             end_at,
             id,
-            is_active: false,
+            is_active: true,
             is_completed: false,
             number_of_days,
             owner: self.owner.key(),
