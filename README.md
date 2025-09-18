@@ -9,6 +9,8 @@ wallet-based authentication.
 
 This was built for the [Turbin3 Q3 Builders Cohort](https://turbin3.org).
 
+Program ID on DevNet: `Bvw5aYMCJDM1136hC5GLqmtq1LbsqSKEgC4owCQj9ZYm` - see it on the [Solana explorer](https://explorer.solana.com/address/Bvw5aYMCJDM1136hC5GLqmtq1LbsqSKEgC4owCQj9ZYm?cluster=devnet)
+
 ## Features (MVP)
 
 - **Meditation Plan Initialization:** Users can initialize a meditation plan by setting length, daily frequency, and
